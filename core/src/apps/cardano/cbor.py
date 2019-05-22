@@ -13,6 +13,7 @@ _CBOR_INFO_BITS = const(0x1F)
 
 _CBOR_UNSIGNED_INT = const(0b000 << 5)
 _CBOR_BYTE_STRING = const(0b010 << 5)
+_CBOR_TEXT_STRING = const(0b011 << 5)
 _CBOR_ARRAY = const(0b100 << 5)
 _CBOR_MAP = const(0b101 << 5)
 _CBOR_TAG = const(0b110 << 5)
@@ -24,6 +25,8 @@ _CBOR_UINT32_FOLLOWS = const(0x1A)
 _CBOR_UINT64_FOLLOWS = const(0x1B)
 _CBOR_VAR_FOLLOWS = const(0x1F)
 
+_CBOR_FALSE = const(0x14)
+_CBOR_TRUE = const(0x15)
 _CBOR_BREAK = const(0x1F)
 _CBOR_RAW_TAG = const(0x18)
 
@@ -52,6 +55,10 @@ def _cbor_encode(value):
     elif isinstance(value, bytearray):
         yield _header(_CBOR_BYTE_STRING, len(value))
         yield bytes(value)
+    elif isinstance(value, str):
+        encoded_value = value.encode('utf-8')
+        yield _header(_CBOR_TEXT_STRING, len(encoded_value))
+        yield encoded_value
     elif isinstance(value, list):
         # definite-length valued list
         yield _header(_CBOR_ARRAY, len(value))
@@ -70,6 +77,11 @@ def _cbor_encode(value):
         for x in value.array:
             yield from _cbor_encode(x)
         yield bytes([_CBOR_PRIMITIVE + 31])
+    elif isinstance(value, bool):
+        if value:
+            yield bytes([_CBOR_PRIMITIVE + _CBOR_TRUE])
+        else:
+            yield bytes([_CBOR_PRIMITIVE + _CBOR_FALSE])
     elif isinstance(value, Raw):
         yield value.value
     else:
@@ -119,6 +131,9 @@ def _cbor_decode(cbor):
     elif fb_type == _CBOR_BYTE_STRING:
         ln, data = _read_length(cbor[1:], fb_aux)
         return (data[0:ln], data[ln:])
+    elif fb_type == _CBOR_TEXT_STRING:
+        ln, data = _read_length(cbor[1:], fb_aux)
+        return (data[0:ln].encode('utf-8'), data[ln:])
     elif fb_type == _CBOR_ARRAY:
         if fb_aux == _CBOR_VAR_FOLLOWS:
             res = []
@@ -147,8 +162,15 @@ def _cbor_decode(cbor):
             return _cbor_decode(cbor[2:])
         else:
             raise NotImplementedError()
-    elif fb_type == _CBOR_PRIMITIVE:  # only break code is supported
-        return (cbor[0], cbor[1:])
+    elif fb_type == _CBOR_PRIMITIVE:
+        if fb_aux == _CBOR_FALSE:
+            return (False, cbor[1:])
+        elif fb_aux == _CBOR_TRUE:
+            return (True, cbor[1:])
+        elif fb_aux == _CBOR_BREAK:
+            return (cbor[0], cbor[1:])
+        else:
+            raise NotImplementedError()
     else:
         if __debug__:
             log.debug(__name__, "not implemented (decode): %s", cbor[0])

@@ -26,6 +26,11 @@ class TestCardanoCbor(unittest.TestCase):
             (b'', '40'),
             (unhexlify('01020304'), '4401020304'),
 
+            # text strings
+            ('', '60'),
+            ('Fun', '6346756e'),
+            (u'P\u0159\xed\u0161ern\u011b \u017elu\u0165ou\u010dk\xfd k\u016f\u0148 \xfap\u011bl \u010f\xe1belsk\xe9 \xf3dy z\xe1ke\u0159n\xfd u\u010de\u0148 b\u011b\u017e\xed pod\xe9l z\xf3ny \xfal\u016f', '786550c599c3adc5a165726ec49b20c5be6c75c5a56f75c48d6bc3bd206bc5afc58820c3ba70c49b6c20c48fc3a162656c736bc3a920c3b36479207ac3a16b65c5996ec3bd2075c48d65c5882062c49bc5bec3ad20706f64c3a96c207ac3b36e7920c3ba6cc5af'),
+
             # tags
             (Tagged(1, 1363896240), 'c11a514b67b0'),
             (Tagged(23, unhexlify('01020304')), 'd74401020304'),
@@ -47,6 +52,10 @@ class TestCardanoCbor(unittest.TestCase):
             (IndefiniteLengthArray([1, [2, 3], [4, 5]]), '9f01820203820405ff'),
             (IndefiniteLengthArray([1, [2, 3], IndefiniteLengthArray([4, 5])]),
              '9f018202039f0405ffff'),
+
+            # boolean
+            (True, 'f5'),
+            (False, 'f4'),
         ]
         for val, expected in test_vectors:
             encoded = encode(val)
