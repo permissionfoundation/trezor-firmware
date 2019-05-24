@@ -56,7 +56,7 @@ def _cbor_encode(value):
         yield _header(_CBOR_BYTE_STRING, len(value))
         yield bytes(value)
     elif isinstance(value, str):
-        encoded_value = value.encode('utf-8')
+        encoded_value = value.encode("utf-8")
         yield _header(_CBOR_TEXT_STRING, len(encoded_value))
         yield encoded_value
     elif isinstance(value, list):
@@ -133,7 +133,7 @@ def _cbor_decode(cbor):
         return (data[0:ln], data[ln:])
     elif fb_type == _CBOR_TEXT_STRING:
         ln, data = _read_length(cbor[1:], fb_aux)
-        return (data[0:ln].encode('utf-8'), data[ln:])
+        return (data[0:ln].encode("utf-8"), data[ln:])
     elif fb_type == _CBOR_ARRAY:
         if fb_aux == _CBOR_VAR_FOLLOWS:
             res = []
