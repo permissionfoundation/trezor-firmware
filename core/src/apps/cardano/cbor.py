@@ -12,6 +12,7 @@ _CBOR_TYPE_MASK = const(0xE0)
 _CBOR_INFO_BITS = const(0x1F)
 
 _CBOR_UNSIGNED_INT = const(0b000 << 5)
+_CBOR_NEGATIVE_INT = const(0b001 << 5)
 _CBOR_BYTE_STRING = const(0b010 << 5)
 _CBOR_TEXT_STRING = const(0b011 << 5)
 _CBOR_ARRAY = const(0b100 << 5)
@@ -48,7 +49,10 @@ def _header(typ, l: int):
 
 def _cbor_encode(value):
     if isinstance(value, int):
-        yield _header(_CBOR_UNSIGNED_INT, value)
+        if value >= 0:
+            yield _header(_CBOR_UNSIGNED_INT, value)
+        else:
+            yield _header(_CBOR_NEGATIVE_INT, -1 - value)
     elif isinstance(value, bytes):
         yield _header(_CBOR_BYTE_STRING, len(value))
         yield value
@@ -66,7 +70,7 @@ def _cbor_encode(value):
             yield from _cbor_encode(x)
     elif isinstance(value, dict):
         yield _header(_CBOR_MAP, len(value))
-        for k, v in value.items():
+        for k, v in sorted(value.items()):
             yield from _cbor_encode(k)
             yield from _cbor_encode(v)
     elif isinstance(value, Tagged):
@@ -91,7 +95,9 @@ def _cbor_encode(value):
 
 
 def _read_length(cbor, aux):
-    if aux == _CBOR_UINT8_FOLLOWS:
+    if aux < _CBOR_UINT8_FOLLOWS:
+        return (aux, cbor)
+    elif aux == _CBOR_UINT8_FOLLOWS:
         return (cbor[0], cbor[1:])
     elif aux == _CBOR_UINT16_FOLLOWS:
         res = cbor[1]
@@ -123,17 +129,16 @@ def _cbor_decode(cbor):
     fb_type = fb & _CBOR_TYPE_MASK
     fb_aux = fb & _CBOR_INFO_BITS
     if fb_type == _CBOR_UNSIGNED_INT:
-        if fb_aux < 0x18:
-            return (fb_aux, cbor[1:])
-        else:
-            val, data = _read_length(cbor[1:], fb_aux)
-            return (int(val), data)
+        return _read_length(cbor[1:], fb_aux)
+    elif fb_type == _CBOR_NEGATIVE_INT:
+        val, data = _read_length(cbor[1:], fb_aux)
+        return (-1 - val, data)
     elif fb_type == _CBOR_BYTE_STRING:
         ln, data = _read_length(cbor[1:], fb_aux)
         return (data[0:ln], data[ln:])
     elif fb_type == _CBOR_TEXT_STRING:
         ln, data = _read_length(cbor[1:], fb_aux)
-        return (data[0:ln].encode("utf-8"), data[ln:])
+        return (data[0:ln].decode("utf-8"), data[ln:])
     elif fb_type == _CBOR_ARRAY:
         if fb_aux == _CBOR_VAR_FOLLOWS:
             res = []
@@ -145,23 +150,40 @@ def _cbor_decode(cbor):
                 res.append(item)
             return (res, data)
         else:
-            if fb_aux < _CBOR_UINT8_FOLLOWS:
-                ln = fb_aux
-                data = cbor[1:]
-            else:
-                ln, data = _read_length(cbor[1:], fb_aux)
+            ln, data = _read_length(cbor[1:], fb_aux)
             res = []
             for i in range(ln):
                 item, data = _cbor_decode(data)
                 res.append(item)
             return (res, data)
     elif fb_type == _CBOR_MAP:
-        return ({}, cbor[1:])
-    elif fb_type == _CBOR_TAG:
-        if cbor[1] == _CBOR_RAW_TAG:  # only tag 24 (0x18) is supported
-            return _cbor_decode(cbor[2:])
+        res = {}
+        if fb_aux == _CBOR_VAR_FOLLOWS:
+            data = cbor[1:]
+            while True:
+                key, data = _cbor_decode(data)
+                if key in res:
+                    raise ValueError
+                if key == _CBOR_PRIMITIVE + _CBOR_BREAK:
+                    break
+                value, data = _cbor_decode(data)
+                res[key] = value
         else:
-            raise NotImplementedError()
+            ln, data = _read_length(cbor[1:], fb_aux)
+            for i in range(ln):
+                key, data = _cbor_decode(data)
+                if key in res:
+                    raise ValueError
+                value, data = _cbor_decode(data)
+                res[key] = value
+        return res, data
+    elif fb_type == _CBOR_TAG:
+        val, data = _read_length(cbor[1:], fb_aux)
+        item, data = _cbor_decode(data)
+        if val == _CBOR_RAW_TAG:  # only tag 24 (0x18) is supported
+            return item, data
+        else:
+            return Tagged(val, item), data
     elif fb_type == _CBOR_PRIMITIVE:
         if fb_aux == _CBOR_FALSE:
             return (False, cbor[1:])
@@ -182,6 +204,9 @@ class Tagged:
         self.tag = tag
         self.value = value
 
+    def __eq__(self, other):
+        return self.tag == other.tag and self.value == other.value
+
 
 class Raw:
     def __init__(self, value):
@@ -192,6 +217,12 @@ class IndefiniteLengthArray:
     def __init__(self, array):
         ensure(isinstance(array, list))
         self.array = array
+
+    def __eq__(self, other):
+        if isinstance(other, IndefiniteLengthArray):
+            return self.array == other.array
+        else:
+            return self.array == other
 
 
 def encode(value):

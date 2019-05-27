@@ -3,14 +3,15 @@ from common import *
 from apps.cardano.cbor import (
     Tagged,
     IndefiniteLengthArray,
-    encode
+    encode,
+    decode
 )
 from ubinascii import unhexlify
 
 class TestCardanoCbor(unittest.TestCase):
     def test_cbor_encoding(self):
         test_vectors = [
-            # integers
+            # unsigned integers
             (0, '00'),
             (1, '01'),
             (10, '0a'),
@@ -21,6 +22,17 @@ class TestCardanoCbor(unittest.TestCase):
             (1000, '1903e8'),
             (1000000, '1a000f4240'),
             (1000000000000, '1b000000e8d4a51000'),
+
+            # negative integers
+            (-1, '20'),
+            (-10, '29'),
+            (-24, '37'),
+            (-25, '3818'),
+            (-26, '3819'),
+            (-100, '3863'),
+            (-1000, '3903E7'),
+            (-1000000, '3A000F423F'),
+            (-1000000000000, '3B000000E8D4A50FFF'),
 
             # binary strings
             (b'', '40'),
@@ -43,9 +55,7 @@ class TestCardanoCbor(unittest.TestCase):
 
             # maps
             ({}, 'a0'),
-
-            # Note: normal python dict doesn't have a fixed item ordering
-            ({1: 2, 3: 4}, 'a203040102'),
+            ({1: 2, 3: 4}, 'a201020304'),
 
             # indefinite
             (IndefiniteLengthArray([]), '9fff'),
@@ -57,9 +67,9 @@ class TestCardanoCbor(unittest.TestCase):
             (True, 'f5'),
             (False, 'f4'),
         ]
-        for val, expected in test_vectors:
-            encoded = encode(val)
-            self.assertEqual(unhexlify(expected), encoded)
+        for val, encoded in test_vectors:
+            self.assertEqual(unhexlify(encoded), encode(val))
+            self.assertEqual(val, decode(unhexlify(encoded)))
 
 if __name__ == '__main__':
     unittest.main()
