@@ -70,8 +70,9 @@ def _cbor_encode(value):
             yield from _cbor_encode(x)
     elif isinstance(value, dict):
         yield _header(_CBOR_MAP, len(value))
-        for k, v in sorted(value.items()):
-            yield from _cbor_encode(k)
+        sorted_map = sorted((encode(k), v) for k, v in value.items())
+        for k, v in sorted_map:
+            yield k
             yield from _cbor_encode(v)
     elif isinstance(value, Tagged):
         yield _header(_CBOR_TAG, value.tag)
@@ -138,7 +139,7 @@ def _cbor_decode(cbor):
         return (data[0:ln], data[ln:])
     elif fb_type == _CBOR_TEXT_STRING:
         ln, data = _read_length(cbor[1:], fb_aux)
-        return (data[0:ln].decode("utf-8"), data[ln:])
+        return (str(data[0:ln], "utf-8"), data[ln:])
     elif fb_type == _CBOR_ARRAY:
         if fb_aux == _CBOR_VAR_FOLLOWS:
             res = []
