@@ -27,7 +27,8 @@ build core unix:
     - cd core
     - pipenv run make build_unix
 
-build core unix frozen:
+# TODO talk to stick about this
+build core unix frozen debug:
   stage: build
   script:
     - cd core
@@ -40,7 +41,7 @@ build core unix frozen:
 test core unix unit:
   stage: test
   dependencies:
-    - build core unix frozen
+    - build core unix frozen debug
   script:
     - cd core
     - pipenv run make test
@@ -48,7 +49,7 @@ test core unix unit:
 test core unix device:
   stage: test
   dependencies:
-    - build core unix frozen
+    - build core unix frozen debug
   script:
     - cd core
     - pipenv run make test_emu
@@ -56,7 +57,15 @@ test core unix device:
 test core unix monero:
   stage: test
   dependencies:
-    - build core unix frozen
+    - build core unix frozen debug
   script:
     - cd core
     - pipenv run make test_emu_monero
+
+test core upgrade:
+  stage: test
+  dependencies:
+    - build core unix frozen debug
+  script:
+    - cd core
+    - pipenv run make test_upgrade

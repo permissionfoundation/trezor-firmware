@@ -135,6 +135,7 @@ SOURCE_MOD += [
     'embed/extmod/modtrezorui/qr-code-generator/qrcodegen.c',
 ]
 if ARGUMENTS.get('TREZOR_EMULATOR_FROZEN', 0):
+    PYOPT = '0'  # this is not a good idea TODO!
     CPPDEFINES_MOD += ['TREZOR_EMULATOR_FROZEN']
 
 # modtrezorutils
